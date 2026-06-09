@@ -70,4 +70,49 @@ public class GameServiceTest {
         // 2. On vérifie la persistance avec Mockito (le service a-t-il pensé à sauvegarder ?)
         verify(playerDaoMock, times(1)).update(mockPlayer);
     }
+
+    @Test
+    public void testResolveGamePlayerBustsLosesBet() {
+        Player mockPlayer = new Player("Alice", 1000, 5);
+        when(playerDaoMock.read("Alice")).thenReturn(mockPlayer);
+        gameService.startNewGame("Alice");
+
+        // Cas limite : on force le joueur à brûler (BUST) avec 3 Rois
+        gameService.getPlayerHand().addCard(new Card(Suit.HEARTS, Rank.KING));
+        gameService.getPlayerHand().addCard(new Card(Suit.SPADES, Rank.KING));
+        gameService.getPlayerHand().addCard(new Card(Suit.DIAMONDS, Rank.KING)); // Score = 30
+
+        gameService.resolveGame(100);
+
+        assertEquals(900, mockPlayer.getBalance(), "Le solde doit diminuer de 100 si le joueur Bust.");
+        verify(playerDaoMock, times(1)).update(mockPlayer);
+    }
+
+    @Test
+    public void testResolveGameTieDoesNotChangeBalance() {
+        Player mockPlayer = new Player("Alice", 1000, 5);
+        when(playerDaoMock.read("Alice")).thenReturn(mockPlayer);
+        gameService.startNewGame("Alice");
+
+        // Cas limite : Égalité parfaite (Joueur 20, Croupier 20)
+        gameService.getPlayerHand().addCard(new Card(Suit.HEARTS, Rank.KING));
+        gameService.getPlayerHand().addCard(new Card(Suit.SPADES, Rank.QUEEN));
+
+        gameService.getDealerHand().addCard(new Card(Suit.CLUBS, Rank.KING));
+        gameService.getDealerHand().addCard(new Card(Suit.DIAMONDS, Rank.QUEEN));
+
+        gameService.resolveGame(100);
+
+        assertEquals(1000, mockPlayer.getBalance(), "En cas d'égalité, l'argent reste intact.");
+        assertEquals(5, mockPlayer.getWins(), "Les victoires ne doivent pas augmenter.");
+        verify(playerDaoMock, times(1)).update(mockPlayer);
+    }
+
+    @Test
+    public void testDealerPlayStopsAt17() {
+        // Le croupier joue tout seul : on s'assure qu'il respecte la règle des casinos
+        gameService.dealerPlay();
+        assertTrue(gameService.getDealerHand().getScore() >= 17,
+                "Le croupier doit tirer jusqu'à avoir 17 ou plus.");
+    }
 }
